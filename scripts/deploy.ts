@@ -1,7 +1,8 @@
 import { ethers } from "hardhat";
 
 async function deploy() {
-  const Mintyplex = await ethers.deployContract("Mintyplex");
+  const MintyplexDomain = "0x000000000000000000000000000000000000dead";
+  const Mintyplex = await ethers.deployContract("Mintyplex", [MintyplexDomain]);
 
   await Mintyplex.waitForDeployment();
 

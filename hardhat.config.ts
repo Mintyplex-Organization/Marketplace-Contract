@@ -8,12 +8,19 @@ const SEPOLIA_RPC_URL = process.env.SEPOLIA_RPC_URL;
 const OPTIMISM_GOERLI_URL = process.env.OPTIMISM_GOERLI_URL;
 
 const config: HardhatUserConfig = {
+  //@ts-ignore
+  version: "0.8.9",
   defaultNetwork: "hardhat",
   //@ts-ignore
   settings: {
+    viaIR: true,
     optimizer: {
-      enabled: false,
-      runs: 1000,
+      enabled: true,
+      details: {
+        yulDetails: {
+          optimizerSteps: "u",
+        },
+      },
     },
   },
   networks: {
