@@ -2,6 +2,7 @@
 pragma solidity ^0.8.9;
 
 import "@openzeppelin/contracts/token/ERC721/extensions/ERC721URIStorage.sol";
+import "@openzeppelin/contracts/utils/Base64.sol";
 
 error RangeOutbond();
 error ErrorCreatingProduct();
@@ -23,7 +24,7 @@ interface IMintyplexDomains {
     ) external view returns (Domain memory);
 }
 
-contract Mintyplex is ERC721 {
+contract Mintyplex is ERC721URIStorage {
     // enum ProductType {
     //     PHYSICAL,
     //     DIGITAL
@@ -123,7 +124,7 @@ contract Mintyplex is ERC721 {
         product.value = _value;
 
         productCount[msg.sender] = numProduct + 1;
-        bool responds = _createProduct();
+        bool responds = _createProduct(_name, _description);
         if (responds) {
             emit ProductCreated(
                 _thumbnails,
@@ -144,17 +145,30 @@ contract Mintyplex is ERC721 {
         }
     }
 
-    function _createProduct() private returns (bool) {
+    function _createProduct(string memory _name, string memory _description) private returns (bool) {
         uint256 id = totalProduct;
         productIdToOwner[id] = msg.sender;
         totalProduct++;
         _safeMint(msg.sender, id);
-        string memory uri = createUri();
+        string memory uri = createUri(_name, _description);
         _setTokenURI(id, uri);
         return true;
     }
 
-    function createUri() private returns (string memory) {}
+    function createUri(string memory _name, string memory _description) private returns (string memory) {
+        return
+            string(
+                abi.encodePacked(_baseURI()),
+                Base64.encode(
+                    bytes(abi.encodePacked('heyyyy'))
+                )
+            );
+                                            // {"name":"NFT #1","description":"This is my first NFT","image":"ipfs://QmamvVM5kvsYjQJYs7x8LXKYGFkwtGvuRvqZsuzvpHmQq9/0","properties":[{"name":"coolness","value":"very cool"}]};
+    }
+
+    function _baseURI() internal pure override returns (string memory) {
+        return "data:application/json;base64";
+    }
 
     // function editProduct(uint256 _id, string[] calldata _thumbnail, ) external{}
     function deleteProduct() external {}
