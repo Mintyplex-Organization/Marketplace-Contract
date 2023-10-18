@@ -2,7 +2,7 @@
 pragma solidity ^0.8.9;
 
 import "@openzeppelin/contracts/token/ERC721/extensions/ERC721URIStorage.sol";
-import "@openzeppelin/contracts/utils/Base64.sol";
+import "./libraries/base64.sol";
 
 error RangeOutbond();
 error ErrorCreatingProduct();
@@ -124,7 +124,13 @@ contract Mintyplex is ERC721URIStorage {
         product.value = _value;
 
         productCount[msg.sender] = numProduct + 1;
-        bool responds = _createProduct(_name, _description);
+        bool responds = _createProduct(
+            _name,
+            _description,
+            _cid,
+            _attribute,
+            _value
+        );
         if (responds) {
             emit ProductCreated(
                 _thumbnails,
@@ -145,32 +151,80 @@ contract Mintyplex is ERC721URIStorage {
         }
     }
 
-    function _createProduct(string memory _name, string memory _description) private returns (bool) {
+    function _createProduct(
+        string memory _name,
+        string memory _description,
+        string memory _cid,
+        string[] calldata _attribute,
+        string[] calldata _value
+    ) private returns (bool) {
         uint256 id = totalProduct;
         productIdToOwner[id] = msg.sender;
         totalProduct++;
         _safeMint(msg.sender, id);
-        string memory uri = createUri(_name, _description);
+        string memory uri = createUri(
+            _name,
+            _description,
+            _cid,
+            _attribute,
+            _value
+        );
         _setTokenURI(id, uri);
         return true;
     }
 
-    function createUri(string memory _name, string memory _description) private returns (string memory) {
-        return
-            string(
-                abi.encodePacked(_baseURI()),
-                Base64.encode(
-                    bytes(abi.encodePacked('heyyyy'))
+    function createUri(
+        string memory _name,
+        string memory _description,
+        string memory _cid,
+        string[] calldata _attribute,
+        string[] calldata _value
+    ) private view returns (string memory) {
+        string memory json;
+        json = Base64.encode(
+            abi.encodePacked(
+                "{"
+                '"name": "',
+                _name,
+                '", '
+                '"description": "',
+                _description,
+                '", '
+                '"owner": "',
+                msg.sender,
+                '", '
+                '"product": "ipfs://',
+                _cid,
+                '", '
+                '"properties": ['
+            )
+        );
+
+        for (uint i = 0; i < _attribute.length; i++) {
+            json = string(
+                abi.encodePacked(
+                    json,
+                    '{"attribute": "',
+                    _attribute[i],
+                    '", "value": "',
+                    _value[i],
+                    '"}'
                 )
             );
-                                            // {"name":"NFT #1","description":"This is my first NFT","image":"ipfs://QmamvVM5kvsYjQJYs7x8LXKYGFkwtGvuRvqZsuzvpHmQq9/0","properties":[{"name":"coolness","value":"very cool"}]};
+            if (i < _attribute.length - 1) {
+                json = string(abi.encodePacked(json, ", "));
+            }
+        }
+
+        json = string(abi.encodePacked(json, "]}"));
+        string memory finalTokenUri = string(
+            abi.encodePacked("data:application/json;base64,", json)
+        );
+        return finalTokenUri;
     }
 
-    function _baseURI() internal pure override returns (string memory) {
-        return "data:application/json;base64";
-    }
+    function editProduct(uint256 _id, string[] calldata _thumbnail) external {}
 
-    // function editProduct(uint256 _id, string[] calldata _thumbnail, ) external{}
     function deleteProduct() external {}
 
     function deactivateProduct() external {}
