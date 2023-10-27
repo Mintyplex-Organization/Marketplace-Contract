@@ -6,6 +6,8 @@ import "./libraries/base64.sol";
 
 error RangeOutbond();
 error ErrorCreatingProduct();
+error NotOwner();
+error ProductDoesnotExist();
 
 interface IMintyplexDomains {
     struct Domain {
@@ -40,6 +42,7 @@ contract Mintyplex is ERC721URIStorage {
         uint256 balance;
     }
     struct Product {
+        uint256 id;
         string[] thumbnails;
         string name;
         uint256 date;
@@ -58,11 +61,11 @@ contract Mintyplex is ERC721URIStorage {
     }
 
     IMintyplexDomains mns;
-    uint256 totalProduct = 0;
+    uint256 productCounter = 0;
 
-    mapping(address => mapping(uint256 => Product)) public ownersProduct;
-    mapping(address => uint256) public productCount; // Total number of product by a user
-    mapping(uint256 => address) productIdToOwner;
+    mapping(uint256 => Product) private idToProduct;
+    mapping(address => uint256[]) private userProductCounter;
+    mapping (address => uint256) private balance;
 
     event ProductCreated(
         string[] _thumbnails,
@@ -78,7 +81,18 @@ contract Mintyplex is ERC721URIStorage {
         string[] _value,
         address indexed _owner
     );
-    modifier verifyProduct(uint256 id) {
+    modifier verifyProduct(uint256 _id) {
+        Product storage product = idToProduct[_id];
+        if (product.date == 0) {
+            revert ProductDoesnotExist();
+        }
+        _;
+    }
+    modifier isOwner(uint256 _productId) {
+        Product storage product = idToProduct[_productId];
+        if (product.owner != msg.sender) {
+            revert NotOwner();
+        }
         _;
     }
 
@@ -104,9 +118,8 @@ contract Mintyplex is ERC721URIStorage {
             revert RangeOutbond();
         }
 
-        uint256 numProduct = productCount[msg.sender];
-        Product storage product = ownersProduct[msg.sender][numProduct];
-
+        Product storage product = idToProduct[productCounter];
+        product.id = productCounter;
         product.thumbnails = _thumbnails;
         product.name = _name;
         product.date = block.timestamp;
@@ -123,7 +136,6 @@ contract Mintyplex is ERC721URIStorage {
         product.attribute = _attribute;
         product.value = _value;
 
-        productCount[msg.sender] = numProduct + 1;
         bool responds = _createProduct(
             _name,
             _description,
@@ -132,6 +144,9 @@ contract Mintyplex is ERC721URIStorage {
             _value
         );
         if (responds) {
+            userProductCounter[msg.sender].push(productCounter);
+            productCounter++;
+
             emit ProductCreated(
                 _thumbnails,
                 _name,
@@ -158,9 +173,7 @@ contract Mintyplex is ERC721URIStorage {
         string[] calldata _attribute,
         string[] calldata _value
     ) private returns (bool) {
-        uint256 id = totalProduct;
-        productIdToOwner[id] = msg.sender;
-        totalProduct++;
+        uint256 id = productCounter;
         _safeMint(msg.sender, id);
         string memory uri = createUri(
             _name,
@@ -223,11 +236,72 @@ contract Mintyplex is ERC721URIStorage {
         return finalTokenUri;
     }
 
-    function editProduct(uint256 _id, string[] calldata _thumbnail) external {}
+    function editProduct(
+        uint256 _id,
+        string[] memory _thumbnails,
+        uint256 newPrice
+    ) external verifyProduct(_id) isOwner(_id) {
+        Product storage product = idToProduct[_id];
+        product.price = newPrice;
+        product.thumbnails = _thumbnails;
+    }
 
-    function deleteProduct() external {}
+    function buyProduct(
+        uint256 _id,
+        uint256 _quantity,
+        address buyer
+    ) external payable verifyProduct(_id) {
+        Product storage product = idToProduct[_id];
+        
+    }
 
-    function deactivateProduct() external {}
+    function deleteProduct(
+        uint256 _id
+    ) external verifyProduct(_id) isOwner(_id) {
+        Product storage product = idToProduct[_id];
+        product.id = productCounter;
+        product.thumbnails = [""];
+        product.name = "";
+        product.date = 0;
+        product.cid = "";
+        product.sales = 0;
+        product.quantity = 0;
+        product.productType = "";
+        product.price = 0;
+        product.isActive = false;
+        product.description = "";
+        product.owner = msg.sender;
+        product.referral = false;
+        product.referralPercentage = 0;
+        product.attribute = [""];
+        product.value = [""];
+    }
 
-    function activateProduct() external {}
+    function changeVisibility(
+        uint256 _id
+    ) external verifyProduct(_id) isOwner(_id) {
+        Product storage product = idToProduct[_id];
+        product.isActive = !product.isActive;
+    }
+
+    function getAllProduct() external view returns (Product[] memory) {
+        Product[] memory allProduct = new Product[](productCounter);
+        for (uint256 i = 0; i < productCounter; i++) {
+            Product storage product = idToProduct[i];
+            allProduct[i] = product;
+        }
+        return allProduct;
+    }
+
+    function getAllUsersProduct(
+        address _owner
+    ) external view returns (Product[] memory) {
+        uint256[] memory ids = userProductCounter[_owner];
+        Product[] memory userProduct = new Product[](ids.length);
+        for (uint256 i = 0; i < ids.length; i++) {
+            Product storage product = idToProduct[ids[i]];
+            userProduct[i] = product;
+        }
+        return userProduct;
+    }
 }
