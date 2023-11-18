@@ -2,12 +2,17 @@
 pragma solidity ^0.8.9;
 
 import "@openzeppelin/contracts/token/ERC721/extensions/ERC721URIStorage.sol";
+import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "./libraries/base64.sol";
 
 error RangeOutbond();
 error ErrorCreatingProduct();
 error NotOwner();
 error ProductDoesnotExist();
+error NotEnoughMoney();
+error PaymentError();
+error WithdrawFailed();
+error NothingToWithdraw();
 
 interface IMintyplexDomains {
     struct Domain {
@@ -26,7 +31,7 @@ interface IMintyplexDomains {
     ) external view returns (Domain memory);
 }
 
-contract Mintyplex is ERC721URIStorage {
+contract Mintyplex is ERC721URIStorage, ReentrancyGuard {
     // enum ProductType {
     //     PHYSICAL,
     //     DIGITAL
@@ -60,12 +65,18 @@ contract Mintyplex is ERC721URIStorage {
         string[] value;
     }
 
+    struct Shopper {
+        uint256[] productIds;
+    }
+
     IMintyplexDomains mns;
     uint256 productCounter = 0;
 
     mapping(uint256 => Product) private idToProduct;
     mapping(address => uint256[]) private userProductCounter;
-    mapping (address => uint256) private balance;
+    mapping(address => uint256) private balance;
+    mapping(address => Shopper) private shopper;
+    mapping(address => Creator) private creators;
 
     event ProductCreated(
         string[] _thumbnails,
@@ -98,6 +109,34 @@ contract Mintyplex is ERC721URIStorage {
 
     constructor(address mintyplexDomain) ERC721("Mintyplex", "MTPX") {
         mns = IMintyplexDomains(mintyplexDomain);
+    }
+
+    function create(
+        string[] calldata _thumbnails,
+        string calldata _name,
+        uint256 _quantity,
+        string calldata _productType,
+        uint256 _productPrice,
+        bool _referral,
+        uint256 _referralPercentage,
+        string calldata _description,
+        string calldata _cid,
+        string[] calldata _attribute,
+        string[] calldata _value
+    ) internal {
+        createProduct(
+            _thumbnails,
+            _name,
+            _quantity,
+            _productType,
+            _productPrice,
+            _referral,
+            _referralPercentage,
+            _description,
+            _cid,
+            _attribute,
+            _value
+        );
     }
 
     function createProduct(
@@ -250,9 +289,23 @@ contract Mintyplex is ERC721URIStorage {
         uint256 _id,
         uint256 _quantity,
         address buyer
-    ) external payable verifyProduct(_id) {
+    ) external payable verifyProduct(_id) nonReentrant {
         Product storage product = idToProduct[_id];
-        
+        if (msg.value < _quantity * product.price) {
+            revert NotEnoughMoney();
+        }
+        // (bool success, ) = payable(product.owner).call{value: msg.value}("");
+        // if (success) {
+        // revert PaymentError();
+        // }
+        balance[product.owner] = msg.value;
+        Shopper storage usersProducts = shopper[buyer];
+        uint256[] storage ids = usersProducts.productIds;
+        ids.push(_id);
+        usersProducts.productIds = ids;
+        product.sales++;
+        Creator storage creator = creators[product.owner];
+        creator.balance = msg.value;
     }
 
     function deleteProduct(
@@ -303,5 +356,16 @@ contract Mintyplex is ERC721URIStorage {
             userProduct[i] = product;
         }
         return userProduct;
+    }
+
+    function withDrawRoyalties() public nonReentrant {
+        Creator storage creator = creators[msg.sender];
+        if (creator.balance == 0) {
+            revert NothingToWithdraw();
+        }
+        (bool sucess, ) = payable(msg.sender).call{value: creator.balance}("");
+        if (!sucess) {
+            revert WithdrawFailed();
+        }
     }
 }

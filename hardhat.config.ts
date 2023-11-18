@@ -6,6 +6,7 @@ dotenv.config();
 const PRIVATE_KEY = process.env.PRIVATE_KEY;
 const SEPOLIA_RPC_URL = process.env.SEPOLIA_RPC_URL;
 const OPTIMISM_GOERLI_URL = process.env.OPTIMISM_GOERLI_URL;
+const POLYGON_RPC_URL = process.env.POLYGON_RPC_URL;
 
 const config: HardhatUserConfig = {
   //@ts-ignore
@@ -42,6 +43,12 @@ const config: HardhatUserConfig = {
       accounts: PRIVATE_KEY !== undefined ? [PRIVATE_KEY] : [],
       chainId: 420,
     },
+    polygonMumbai: {
+            url: POLYGON_RPC_URL,
+            accounts: PRIVATE_KEY !== undefined ? [PRIVATE_KEY] : [],
+            // saveDeployments: true,
+            chainId: 80001,
+        },
   },
   solidity: {
     compilers: [
